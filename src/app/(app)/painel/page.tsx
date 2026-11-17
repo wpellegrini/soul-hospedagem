@@ -8,7 +8,9 @@ import {
   formatDayShort,
   formatMoney,
   formatTime,
+  nightsBetween,
   todayISO,
+  whatsappLink,
   type Reservation,
 } from "@/lib/types";
 import type { RoomSituation } from "@/lib/occupancy";
@@ -36,7 +38,7 @@ export default async function DashboardPage() {
       .from("reservations")
       .select("id, room_id, check_in, check_out, status, adults, children, guest:guests(full_name, phone), room:rooms(number)")
       .in("status", ["confirmada", "hospedado"])
-      .lt("check_in", horizon)
+      .lte("check_in", horizon)
       .order("check_in")
       .returns<StayRow[]>(),
     supabase.from("payments").select("amount").gte("created_at", monthStart),
@@ -46,6 +48,9 @@ export default async function DashboardPage() {
   const inHouse = stays.filter((r) => r.status === "hospedado");
   const arrivals = stays.filter((r) => r.status === "confirmada" && r.check_in <= today);
   const departures = inHouse.filter((r) => r.check_out <= today);
+  // Reservas confirmadas que chegam de amanhã até daqui a 7 dias
+  const nextArrivals = stays.filter((r) => r.status === "confirmada" && r.check_in > today);
+  const tomorrow = addDays(today, 1);
   const totals = await loadTotals(supabase, inHouse.map((r) => r.id));
 
   const sellable = states.filter((s) => s.housekeeping !== "manutencao" || s.stay).length;
@@ -176,6 +181,52 @@ export default async function DashboardPage() {
           )}
         </section>
       </div>
+
+      <section className="card">
+        <h2 className="border-b border-stone-100 px-4 py-3 text-sm font-semibold text-stone-900">
+          Próximas chegadas · 7 dias ({nextArrivals.length})
+        </h2>
+        {nextArrivals.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-stone-500">Nenhuma chegada prevista para os próximos 7 dias.</p>
+        ) : (
+          <ul className="divide-y divide-stone-100">
+            {nextArrivals.map((r) => {
+              const d = formatDayShort(r.check_in);
+              const nights = nightsBetween(r.check_in, r.check_out);
+              const people = r.adults + r.children;
+              const wa = r.guest?.phone ? whatsappLink(r.guest.phone) : null;
+              return (
+                <li key={r.id} className="flex items-center gap-4 px-4 py-3">
+                  <div className="w-14 shrink-0 rounded-lg bg-amber-50 py-1 text-center text-amber-800">
+                    <div className="text-[11px] font-medium uppercase">{r.check_in === tomorrow ? "amanhã" : d.weekday}</div>
+                    <div className="text-sm font-semibold">
+                      {d.day}/{d.month}
+                    </div>
+                  </div>
+                  <Link href={`/reservas/${r.id}`} className="min-w-0 flex-1 hover:underline">
+                    <div className="truncate font-medium text-stone-900">{r.guest?.full_name}</div>
+                    <div className="text-xs text-stone-500">
+                      Quarto {r.room?.number} · {nights} {nights === 1 ? "noite" : "noites"} · {people}{" "}
+                      {people === 1 ? "pessoa" : "pessoas"} · saída {formatDate(r.check_out)}
+                    </div>
+                  </Link>
+                  {wa && (
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+                      title="Confirmar a chegada pelo WhatsApp"
+                    >
+                      WhatsApp
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="card p-4">
         <h2 className="mb-4 text-sm font-semibold text-stone-900">Ocupação prevista (próximos 7 dias)</h2>

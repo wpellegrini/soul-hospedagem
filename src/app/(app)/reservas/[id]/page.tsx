@@ -122,7 +122,8 @@ export default async function ReservationPage({ params, searchParams }: PageProp
           )}
           {inHouse && (
             <>
-              <StatusButton id={r.id} status="finalizada" label="Fazer check-out" primary />
+              {/* key: saldo mudou → descarta a mensagem de erro antiga */}
+              <StatusButton key={`co-${balance}`} id={r.id} status="finalizada" label="Fazer check-out" primary />
               <span className={`text-sm ${balance > 0 ? "text-red-700" : "text-emerald-700"}`}>
                 {balance > 0
                   ? `Saldo a pagar: ${formatMoney(balance)}. Registre o pagamento antes do check-out.`
@@ -223,6 +224,7 @@ export default async function ReservationPage({ params, searchParams }: PageProp
                 <div className="w-32">
                   <label htmlFor="amount" className="label">Valor (R$)</label>
                   <input
+                    key={`amount-${balance}`} // atualiza o valor sugerido quando o saldo muda
                     id="amount"
                     name="amount"
                     inputMode="decimal"
